@@ -4,18 +4,32 @@ Spring Boot service that powers the AI Tutor application.
 
 ## Dev environment
 
+Set the required secrets via environment variables before starting the backend.
+
 ```powershell
-# set Notion token for local dev (Windows PowerShell)
-$env:NOTION_API_TOKEN="your_token_here"
+# Windows PowerShell (temporary)
+$env:OPENAI_API_KEY="sk-..."
+$env:NOTION_API_TOKEN="secret_notion_token"
+$env:NOTION_PARENT_PAGE_ID="your_notion_parent_page_or_database_id"
 ```
 
 ```bash
-# OR (Linux / macOS)
-export NOTION_API_TOKEN="your_token_here"
+# Linux / macOS
+export OPENAI_API_KEY="sk-..."
+export NOTION_API_TOKEN="secret_notion_token"
+export NOTION_PARENT_PAGE_ID="your_notion_parent_page_or_database_id"
 ```
 
+Optional overrides:
+
+- `OPENAI_MODEL` (default `gpt-4o-mini`)
+- `OPENAI_TIMEOUT_SECONDS` (default `60`)
+- `NOTION_API_VERSION` (default `2022-06-28`)
+
+Start the backend:
+
 ```bash
-# start the backend
+cd backend
 ./mvnw spring-boot:run
 ```
 
@@ -24,14 +38,21 @@ Never commit real tokens to source control. Use your CI/CD provider's secret man
 ## Testing the `/api/ask` endpoint
 
 ```powershell
-curl.exe -X POST http://localhost:8080/api/ask -H "Content-Type: application/json" -d '{"question":"What is recursion?"}'
+curl.exe -X POST http://localhost:8080/api/ask ^
+  -H "Content-Type: application/json" ^
+  -d "{\"question\":\"What is recursion?\",\"context\":\"Explain simply\"}"
 ```
 
 Expect a JSON response similar to:
 
 ```json
-{ "answer": "This is a placeholder answer for: What is recursion?" }
+{
+  "answer": "Recursion is ...",
+  "source": "openai",
+  "raw": null,
+  "notionPageId": "some-notion-page-id-or-null"
+}
 ```
 
-When `NOTION_API_TOKEN` is set, the backend logs that the token is present but continues returning the stub answer until the Notion integration is fully implemented.
+If OpenAI or Notion credentials are missing, the service logs a warning and still returns a safe fallback response.
 

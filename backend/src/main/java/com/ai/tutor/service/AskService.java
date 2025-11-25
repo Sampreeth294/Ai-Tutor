@@ -1,7 +1,9 @@
 package com.ai.tutor.service;
 
+import com.ai.tutor.dto.AskRequest;
 import com.ai.tutor.dto.AskResponse;
 import com.ai.tutor.service.notion.NotionClient;
+import com.ai.tutor.service.openai.OpenAIClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -10,27 +12,41 @@ import org.springframework.stereotype.Service;
 public class AskService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AskService.class);
-    private static final String SAMPLE_PAGE_ID = "placeholder-page-id";
 
+    private final OpenAIClient openAIClient;
     private final NotionClient notionClient;
 
-    public AskService(NotionClient notionClient) {
+    public AskService(OpenAIClient openAIClient, NotionClient notionClient) {
+        this.openAIClient = openAIClient;
         this.notionClient = notionClient;
     }
 
-    public AskResponse ask(String question) {
-        String sanitizedQuestion = question == null ? "" : question.trim();
-        LOGGER.info("Received /api/ask request. Has question: {}", !sanitizedQuestion.isEmpty());
+    public AskResponse getAnswer(AskRequest request) {
+        String question = request == null ? "" : sanitize(request.getQuestion());
+        String context = request == null ? "" : sanitize(request.getContext());
 
-        if (notionClient.hasToken()) {
-            LOGGER.info("Notion token present; delegating to NotionClient skeleton.");
-            notionClient.queryPage(SAMPLE_PAGE_ID);
-        } else {
-            LOGGER.info("Notion token absent; returning stub response.");
+        LOGGER.info("Processing /api/ask question. Length: {}", question.length());
+
+        String answer = openAIClient.generateAnswer(question, context);
+        if (answer == null || answer.isBlank()) {
+            LOGGER.warn("OpenAI returned empty answer; using fallback message.");
+            answer = "Unable to generate an answer right now. Please try again later.";
         }
 
-        String answer = "This is a placeholder answer for: " + sanitizedQuestion;
-        return new AskResponse(answer);
+        String notionPageId = notionClient.savePage("Tutor: " + question, answer);
+
+        AskResponse response = new AskResponse();
+        response.setAnswer(answer);
+        response.setSource("openai");
+        response.setRaw(null);
+        response.setNotionPageId(notionPageId);
+
+        LOGGER.info("Answer ready. Notion page created: {}", notionPageId != null);
+        return response;
+    }
+
+    private String sanitize(String value) {
+        return value == null ? "" : value.trim();
     }
 }
 
